@@ -22,5 +22,7 @@ COPY --from=build --chown=node:node /app/.git /app/.git
 
 USER node
 
-EXPOSE 9000
+# SnapDeploy injects PORT at runtime (3000 by default). Cobalt uses it
+# through api/src/core/env.js when API_PORT is not explicitly configured.
+EXPOSE 3000
 CMD [ "node", "src/cobalt" ]

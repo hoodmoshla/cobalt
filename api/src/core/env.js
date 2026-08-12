@@ -61,8 +61,10 @@ export const loadEnvs = (env = process.env) => {
 
     return {
         apiURL: env.API_URL || '',
-        apiPort: env.API_PORT || 9000,
-        tunnelPort: env.API_PORT || 9000,
+        // SnapDeploy sets PORT at runtime. API_PORT remains the explicit
+        // self-hosted override, while 9000 stays the standard Cobalt default.
+        apiPort: env.API_PORT || env.PORT || 9000,
+        tunnelPort: env.API_PORT || env.PORT || 9000,
 
         listenAddress: env.API_LISTEN_ADDRESS,
         freebindCIDR: process.platform === 'linux' && env.FREEBIND_CIDR,
