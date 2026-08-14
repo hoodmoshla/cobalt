@@ -38,9 +38,15 @@ const subscribe = (keys, fn) => {
     }
 }
 
-export const loadEnvs = (env = process.env) => {
+const runtimeEnvironment = process.env;
+
+// Keep all Cobalt options optional at deployment time. Platforms can provide only
+// the settings a single-instance deployment needs, while this accessor supplies
+// undefined for every omitted optional setting.
+export const loadEnvs = (sourceEnvironment = runtimeEnvironment) => {
+    const readEnv = (key) => sourceEnvironment[key];
     const allServices = new Set(Object.keys(services));
-    const disabledServices = env.DISABLED_SERVICES?.split(',') || [];
+    const disabledServices = readEnv('DISABLED_SERVICES')?.split(',') || [];
     const enabledServices = new Set(Object.keys(services).filter(e => {
         if (!disabledServices.includes(e)) {
             return e;
@@ -51,87 +57,87 @@ export const loadEnvs = (env = process.env) => {
     // back into process.env, so that EnvHttpProxyAgent can pick
     // them up later
     for (const key of httpProxyVariables) {
-        const value = env[key] ?? canonicalEnv[key];
+        const value = sourceEnvironment[key] ?? canonicalEnv[key];
         if (value !== undefined) {
-            process.env[key] = env[key];
+            runtimeEnvironment[key] = sourceEnvironment[key];
         } else {
-            delete process.env[key];
+            delete runtimeEnvironment[key];
         }
     }
 
     return {
-        apiURL: env.API_URL || '',
+        apiURL: readEnv('API_URL') || '',
         // SnapDeploy sets PORT at runtime. API_PORT remains the explicit
         // self-hosted override, while 9000 stays the standard Cobalt default.
-        apiPort: env.API_PORT || env.PORT || 9000,
-        tunnelPort: env.API_PORT || env.PORT || 9000,
+        apiPort: readEnv('API_PORT') || readEnv('PORT') || 9000,
+        tunnelPort: readEnv('API_PORT') || readEnv('PORT') || 9000,
 
-        listenAddress: env.API_LISTEN_ADDRESS,
-        freebindCIDR: process.platform === 'linux' && env.FREEBIND_CIDR,
+        listenAddress: readEnv('API_LISTEN_ADDRESS'),
+        freebindCIDR: process.platform === 'linux' && readEnv('FREEBIND_CIDR'),
 
-        corsWildcard: env.CORS_WILDCARD !== '0',
-        corsURL: env.CORS_URL,
+        corsWildcard: readEnv('CORS_WILDCARD') !== '0',
+        corsURL: readEnv('CORS_URL'),
 
-        cookiePath: env.COOKIE_PATH,
+        cookiePath: readEnv('COOKIE_PATH'),
 
-        rateLimitWindow: (env.RATELIMIT_WINDOW && parseInt(env.RATELIMIT_WINDOW)) || 60,
-        rateLimitMax: (env.RATELIMIT_MAX && parseInt(env.RATELIMIT_MAX)) || 20,
+        rateLimitWindow: (readEnv('RATELIMIT_WINDOW') && parseInt(readEnv('RATELIMIT_WINDOW'))) || 60,
+        rateLimitMax: (readEnv('RATELIMIT_MAX') && parseInt(readEnv('RATELIMIT_MAX'))) || 20,
 
-        tunnelRateLimitWindow: (env.TUNNEL_RATELIMIT_WINDOW && parseInt(env.TUNNEL_RATELIMIT_WINDOW)) || 60,
-        tunnelRateLimitMax: (env.TUNNEL_RATELIMIT_MAX && parseInt(env.TUNNEL_RATELIMIT_MAX)) || 40,
+        tunnelRateLimitWindow: (readEnv('TUNNEL_RATELIMIT_WINDOW') && parseInt(readEnv('TUNNEL_RATELIMIT_WINDOW'))) || 60,
+        tunnelRateLimitMax: (readEnv('TUNNEL_RATELIMIT_MAX') && parseInt(readEnv('TUNNEL_RATELIMIT_MAX'))) || 40,
 
-        sessionRateLimitWindow: (env.SESSION_RATELIMIT_WINDOW && parseInt(env.SESSION_RATELIMIT_WINDOW)) || 60,
+        sessionRateLimitWindow: (readEnv('SESSION_RATELIMIT_WINDOW') && parseInt(readEnv('SESSION_RATELIMIT_WINDOW'))) || 60,
         sessionRateLimit:
             // backwards compatibility with SESSION_RATELIMIT
             // till next major due to an error in docs
-            (env.SESSION_RATELIMIT_MAX && parseInt(env.SESSION_RATELIMIT_MAX))
-            || (env.SESSION_RATELIMIT && parseInt(env.SESSION_RATELIMIT))
+            (readEnv('SESSION_RATELIMIT_MAX') && parseInt(readEnv('SESSION_RATELIMIT_MAX')))
+            || (readEnv('SESSION_RATELIMIT') && parseInt(readEnv('SESSION_RATELIMIT')))
             || 10,
 
-        durationLimit: (env.DURATION_LIMIT && parseInt(env.DURATION_LIMIT)) || 10800,
-        streamLifespan: (env.TUNNEL_LIFESPAN && parseInt(env.TUNNEL_LIFESPAN)) || 90,
+        durationLimit: (readEnv('DURATION_LIMIT') && parseInt(readEnv('DURATION_LIMIT'))) || 10800,
+        streamLifespan: (readEnv('TUNNEL_LIFESPAN') && parseInt(readEnv('TUNNEL_LIFESPAN'))) || 90,
 
         processingPriority: process.platform !== 'win32'
-            && env.PROCESSING_PRIORITY
-            && parseInt(env.PROCESSING_PRIORITY),
+            && readEnv('PROCESSING_PRIORITY')
+            && parseInt(readEnv('PROCESSING_PRIORITY')),
 
-        externalProxy: env.API_EXTERNAL_PROXY,
+        externalProxy: readEnv('API_EXTERNAL_PROXY'),
 
         // used only for comparing against old values when envs are being updated
-        httpProxyValues: httpProxyVariables.map(k => String(env[k])).join(''),
+        httpProxyValues: httpProxyVariables.map(k => String(sourceEnvironment[k])).join(''),
 
-        turnstileSitekey: env.TURNSTILE_SITEKEY,
-        turnstileSecret: env.TURNSTILE_SECRET,
-        jwtSecret: env.JWT_SECRET,
-        jwtLifetime: env.JWT_EXPIRY || 120,
+        turnstileSitekey: readEnv('TURNSTILE_SITEKEY'),
+        turnstileSecret: readEnv('TURNSTILE_SECRET'),
+        jwtSecret: readEnv('JWT_SECRET'),
+        jwtLifetime: readEnv('JWT_EXPIRY') || 120,
 
-        sessionEnabled: env.TURNSTILE_SITEKEY
-                            && env.TURNSTILE_SECRET
-                            && env.JWT_SECRET,
+        sessionEnabled: readEnv('TURNSTILE_SITEKEY')
+                            && readEnv('TURNSTILE_SECRET')
+                            && readEnv('JWT_SECRET'),
 
-        apiKeyURL: env.API_KEY_URL && new URL(env.API_KEY_URL),
-        authRequired: env.API_AUTH_REQUIRED === '1',
-        redisURL: env.API_REDIS_URL,
-        instanceCount: (env.API_INSTANCE_COUNT && parseInt(env.API_INSTANCE_COUNT)) || 1,
+        apiKeyURL: readEnv('API_KEY_URL') && new URL(readEnv('API_KEY_URL')),
+        authRequired: readEnv('API_AUTH_REQUIRED') === '1',
+        redisURL: readEnv('API_REDIS_URL'),
+        instanceCount: (readEnv('API_INSTANCE_COUNT') && parseInt(readEnv('API_INSTANCE_COUNT'))) || 1,
         keyReloadInterval: 900,
 
         allServices,
         enabledServices,
 
-        customInnertubeClient: env.CUSTOM_INNERTUBE_CLIENT,
-        ytSessionServer: env.YOUTUBE_SESSION_SERVER,
+        customInnertubeClient: readEnv('CUSTOM_INNERTUBE_CLIENT'),
+        ytSessionServer: readEnv('YOUTUBE_SESSION_SERVER'),
         ytSessionReloadInterval: 300,
-        ytSessionInnertubeClient: env.YOUTUBE_SESSION_INNERTUBE_CLIENT,
-        ytAllowBetterAudio: env.YOUTUBE_ALLOW_BETTER_AUDIO !== "0",
-        ytPlayerIds: env.YOUTUBE_PLAYER_ID?.split(',')?.map(p => p.trim()),
+        ytSessionInnertubeClient: readEnv('YOUTUBE_SESSION_INNERTUBE_CLIENT'),
+        ytAllowBetterAudio: readEnv('YOUTUBE_ALLOW_BETTER_AUDIO') !== "0",
+        ytPlayerIds: readEnv('YOUTUBE_PLAYER_ID')?.split(',')?.map(p => p.trim()),
 
         // "never" | "session" | "always"
-        forceLocalProcessing: env.FORCE_LOCAL_PROCESSING ?? "never",
+        forceLocalProcessing: readEnv('FORCE_LOCAL_PROCESSING') ?? "never",
 
         // "never" | "key" | "always"
-        enableDeprecatedYoutubeHls: env.ENABLE_DEPRECATED_YOUTUBE_HLS ?? "never",
+        enableDeprecatedYoutubeHls: readEnv('ENABLE_DEPRECATED_YOUTUBE_HLS') ?? "never",
 
-        envFile: env.API_ENV_FILE,
+        envFile: readEnv('API_ENV_FILE'),
         envRemoteReloadInterval: 300,
 
         subscribe,
